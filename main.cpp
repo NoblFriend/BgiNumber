@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-typedef unsigned int Digit;
+typedef unsigned long Digit;
 typedef long long ExtDigit;
 
 enum BnSign { BN_POSITIVE, BN_NEGATIVE, BN_ZERO };
@@ -9,7 +9,7 @@ const ExtDigit BN_RADIX = 4294967296;
 
 struct bn_s {
     Digit* body;
-    Digit body_size;
+    size_t size;
     BnSign sign;
 };
 typedef struct bn_s bn;
@@ -18,6 +18,19 @@ size_t _strlen (const char* str) {
     size_t i = 0;
     for (; str[i] != '\0'; i++);
     return i;
+}
+
+bn* _bn_realloc (bn* src, size_t new_size) {
+    if (new_size <= src->size) return src;
+
+    Digit* new_body = new Digit[new_size];
+    for (size_t i = 0; i < src->size; i++) {
+        new_body[i] = src->body[i];
+    }
+    delete [] src->body;
+    src->body = new_body;
+    src->size = new_size;
+    return src;
 }
 
 bn* bn_new() {
@@ -30,7 +43,7 @@ bn* bn_new() {
         return nullptr;
     }
 
-    r->body_size = 1;
+    r->size = 1;
     r->sign = BN_ZERO;
     r->body[0] = 0;
     
@@ -44,9 +57,30 @@ int bn_delete (bn* t) {
     return BN_OK;
 }
 
+int _bn_print(bn* t) {
+    if (t->body == nullptr) return BN_NULL_OBJECT;
+
+    printf("Size: %zu\n", t->size);
+    printf("Body: ");
+
+    if (t->sign == BN_NEGATIVE) printf("-");
+    else printf("+");
+    for (size_t i = t->size - 1; i > 0; i--) {
+        printf("%010lu\'",t->body[i]);
+    }
+    printf("%010lu\n", t->body[0]);
+    return BN_OK;
+}
+
+int bn_init_int(bn* t, int init_int) {
+    t->body[0] = init_int;
+    return BN_OK;
+}
+
 int main() {
     bn* a = bn_new();
-    int code = bn_delete(a);
-    printf("Code is %d\n", code);
+    bn_init_int(a, 123152); 
+    _bn_print(a);
+    bn_delete(a);
     return 0;
 }
