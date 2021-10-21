@@ -27,6 +27,7 @@ int _bn_remove_leading_zeros (bn* src);
 int _bn_print (bn* t);
 
 int _bn_positive_add_to (bn* t, bn const *right);
+int _bn_positive_sub_to (bn* t, bn const *right);
 int _bn_mul_int (bn* t, unsigned int factor);
 
 //interface
@@ -36,17 +37,23 @@ int bn_delete (bn* t);
 int bn_init_int (bn* t, int init_int);
 int bn_init_string (bn* t, const char* init_string);
 
+int bn_cmp (const bn* left, const bn* right);
 
 int main() {
     bn* a = bn_new();
-    bn_init_string (a, "3198371873131448783729381039813982309"); 
+    bn* b = bn_new();
+    bn_init_string (a, "-3198371873131448783729381039813982309"); 
+    bn_init_string (b, "3198371873131448783729381039813982309"); 
     _bn_print(a);
-    for(size_t i = 0; i < 12; i++) {
-        _bn_positive_add_to(a, a);
-        _bn_print(a);
-    }
+    _bn_print(b);
+    if (bn_cmp(a, b) == 0) printf("=");
+    if (bn_cmp(a, b) >  0) printf(">");
+    if (bn_cmp(a, b) <  0) printf("<");
+//  for(size_t i = 0; i < 12; i++) {
+//  }
     printf("\n");
     bn_delete(a);
+    bn_delete(b);
     return 0;
 }
 
@@ -207,6 +214,8 @@ int bn_init_int (bn* t, int init_int) {
 }
 
 int bn_init_string (bn* t, const char* init_string) {
+    if (t == nullptr) return BN_NULL_OBJECT;
+    
     size_t i = 0;
     
     t->sign = BN_POSITIVE;
@@ -226,5 +235,27 @@ int bn_init_string (bn* t, const char* init_string) {
         code = bn_init_int (buf, init_string[i] - '0');
         code = _bn_positive_add_to(t, buf);
     }
+
     return code;    
+}
+
+int bn_cmp (const bn* left, const bn* right) {
+//  if (left == nullptr || right == nullptr) return BN_NULL_OBJECT;
+    if (left->sign == BN_POSITIVE && right->sign != BN_POSITIVE) return  1;
+    if (left->sign == BN_NEGATIVE && right->sign != BN_NEGATIVE) return -1;
+    if (left->sign == BN_ZERO     && right->sign == BN_NEGATIVE) return  1;
+    if (left->sign == BN_ZERO     && right->sign == BN_POSITIVE) return -1;
+    if (left->sign == BN_ZERO     && right->sign == BN_ZERO    ) return  0;
+
+    int f = 1;
+    if (left->sign == BN_NEGATIVE) f = -1;
+
+    if (left->size > right->size) return  1*f;
+    if (left->size < right->size) return -1*f; 
+
+    for (size_t i = 0; i < left->size; i++) {
+        if (left->body[i] != right->body[i]) return left->body[i] - right->body[i];
+    }
+
+    return 0;
 }
