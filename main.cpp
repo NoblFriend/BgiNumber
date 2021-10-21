@@ -5,7 +5,7 @@ typedef long long ExtDigit;
 
 enum BnSign { BN_POSITIVE, BN_NEGATIVE, BN_ZERO };
 enum BnCodes { BN_OK, BN_NULL_OBJECT, BN_NO_MEMORY, BN_DIVIDE_BY_ZERO };
-const ExtDigit BN_RADIX = 1000000000;
+const ExtDigit BN_RADIX = 10;
 //const ExtDigit BN_RADIX = 4294967296;
 
 struct bn_s {
@@ -39,9 +39,9 @@ int bn_init_int (bn* t, int init_int);
 
 int main() {
     bn* a = bn_new();
-    bn_init_int(a, 123123123); 
+    bn_init_int(a, 2); 
     for(size_t i = 0; i < 12; i++) {
-        _bn_mul_short(a, 10);
+        _bn_positive_add_to(a, a);
         _bn_print(a);
         printf("\n");
     }
@@ -109,11 +109,11 @@ int _bn_print (bn* t) {
 
     if (t->sign == BN_NEGATIVE) printf("-");
     else printf("+");
-    if (BN_RADIX == 1000000000) {
+    if (BN_RADIX == 10) {
         for (size_t i = t->size - 1; i > 0; i--) {
-            printf("%09lu\'",t->body[i]);
+            printf("%01lu",t->body[i]);
         }
-        printf("%09lu\n", t->body[0]);
+        printf("%01lu\n", t->body[0]);
     } else {
         for (size_t i = t->size - 1; i > 0; i--) {
             printf("%010lu\'",t->body[i]);
@@ -123,34 +123,30 @@ int _bn_print (bn* t) {
     return BN_OK;
 }
 
-int _bn_positive_add_to_ (bn* t, bn const *right) {
-    size_t max_size = _max(t->size, right->size);
-    size_t min_size = _min(t->size, right->size);
-    if (t->size != right->size) _bn_realloc(t, max_size);
-    else _bn_realloc(t, max_size+1);
+int _bn_positive_add_to (bn* t, bn const *right) {
+    size_t min_size = right->size;
+    if (t->size < right->size) {
+        _bn_realloc(t, right->size);
+    }
     ExtDigit buf = 0;
     
 
-    for (size_t i = 0 ; i < min_size; i++) {
+    for (size_t i = 0 ; i < right->size; i++) {
         buf += t->body[i] + right->body[i];
         t->body[i] = buf % BN_RADIX;
         buf /= BN_RADIX;
     }
-    if (t->size == max_size) {
-        for (size_t i = min_size; i < t->size; i++) {
-            buf += t->body[i];
-            t->body[i] = buf % BN_RADIX;
-            buf /= BN_RADIX;
-        }
-    } else {
-        for (size_t i = min_size; i < t->size; i++) {
-            buf += right->body[i];
-            t->body[i] = buf % BN_RADIX;
-            buf /= BN_RADIX;
-        }
+    for (size_t i = right->size; i < t->size; i++) {
+        buf += t->body[i];
+        t->body[i] = buf % BN_RADIX;
+        buf /= BN_RADIX;
+    }
+    if (buf != 0) {
+        _bn_realloc(t, t->size+1);
+        t->body[t->size-1] = buf;
     }
 
-    _bn_remove_leading_zeros(t);
+//  _bn_remove_leading_zeros(t);
 
     return BN_OK;
 }
