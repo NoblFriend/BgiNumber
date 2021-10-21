@@ -34,17 +34,18 @@ bn* bn_new();
 int bn_delete (bn* t);
 
 int bn_init_int (bn* t, int init_int);
-
+int bn_init_string (bn* t, const char* init_string);
 
 
 int main() {
     bn* a = bn_new();
-    bn_init_int(a, 2); 
+    bn_init_string (a, "3198371873131448783729381039813982309"); 
+    _bn_print(a);
     for(size_t i = 0; i < 12; i++) {
         _bn_positive_add_to(a, a);
         _bn_print(a);
-        printf("\n");
     }
+    printf("\n");
     bn_delete(a);
     return 0;
 }
@@ -130,7 +131,6 @@ int _bn_positive_add_to (bn* t, bn const *right) {
     }
     ExtDigit buf = 0;
     
-
     for (size_t i = 0 ; i < right->size; i++) {
         buf += t->body[i] + right->body[i];
         t->body[i] = buf % BN_RADIX;
@@ -153,6 +153,7 @@ int _bn_positive_add_to (bn* t, bn const *right) {
 
 int _bn_mul_int (bn* t, unsigned int factor) {
     ExtDigit buf = 0; 
+
     for (size_t i = 0; i < t->size; i++) {
         buf += t->body[i]*ExtDigit(factor);
         t->body[i] = buf % BN_RADIX;
@@ -198,7 +199,32 @@ int bn_init_int (bn* t, int init_int) {
     } else if (init_int < 0) {
         t->sign = BN_NEGATIVE;
         t->body[0] = -init_int;
-    } 
+    } else {
+        t->sign = BN_ZERO;
+        t->body[0] = 0;
+    }
     return BN_OK;
 }
 
+int bn_init_string (bn* t, const char* init_string) {
+    size_t i = 0;
+    
+    t->sign = BN_POSITIVE;
+    if (init_string[0] == '+') i++;
+    if (init_string[0] == '-') {
+        t->sign = BN_NEGATIVE;
+        i++;
+    }
+
+    size_t str_size = _strlen (init_string);
+    
+    int code = BN_OK;
+    bn* buf = bn_new();
+
+    for (; i < str_size; i++) {
+        code = _bn_mul_int (t, 10);
+        code = bn_init_int (buf, init_string[i] - '0');
+        code = _bn_positive_add_to(t, buf);
+    }
+    return code;    
+}
