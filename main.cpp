@@ -20,6 +20,7 @@ size_t _strlen (const char* str);
 
 size_t _max (size_t a, size_t b);
 size_t _min (size_t a, size_t b);
+int _bn_swap (bn* a, bn* b);
 
 int _bn_realloc (bn* src, size_t new_size);
 int _bn_remove_leading_zeros (bn* src);
@@ -32,6 +33,7 @@ int _bn_mul_int (bn* t, unsigned int factor);
 
 //interface
 bn* bn_new();
+bn* bn_init(const bn* orig);
 int bn_delete (bn* t);
 
 int bn_init_int (bn* t, int init_int);
@@ -43,17 +45,18 @@ int main() {
     bn* a = bn_new();
     bn* b = bn_new();
     bn_init_string (a, "-3198371873131448783729381039813982309"); 
-    bn_init_string (b, "3198371873131448783729381039813982309"); 
+    bn_init_string (b, "18446744073709551611"); 
     _bn_print(a);
     _bn_print(b);
-    if (bn_cmp(a, b) == 0) printf("=");
-    if (bn_cmp(a, b) >  0) printf(">");
-    if (bn_cmp(a, b) <  0) printf("<");
+    bn* c = bn_init(b);
+    _bn_print(a);
+    _bn_print(c);
 //  for(size_t i = 0; i < 12; i++) {
 //  }
     printf("\n");
     bn_delete(a);
     bn_delete(b);
+    bn_delete(c);
     return 0;
 }
 
@@ -71,12 +74,43 @@ size_t _min (size_t a, size_t b) {
     return a < b ? a : b;
 }
 
+int _bn_swap (bn* a, bn* b) {
+    if (a == nullptr || b == nullptr) return BN_NULL_OBJECT;
+
+    if (b->size > a->size) {
+        bn* tmp = a;
+        a = b;
+        b = tmp;
+    } //now a->size >= b->size
+    
+    int code = BN_OK;
+
+    code = _bn_realloc (b, a->size);
+    if (code != BN_OK) return code;
+
+    for (size_t i = 0; i < a->size; i++) {
+        Digit temp = a->body[i];
+        a->body[i] = b->body[i];
+        b->body[i] = temp;
+    }
+
+    code = _bn_remove_leading_zeros (a);
+    if (code != BN_OK) return code;
+
+    { //aka swap
+        BnSign tmp = a->sign;
+        a->sign = b->sign;
+        b->sign = tmp;
+    }
+
+    return BN_OK;
+}
 
 int _bn_realloc (bn* src, size_t new_size) {
     if (src == nullptr) return BN_NULL_OBJECT;
     if (new_size <= src->size) return BN_OK;
 
-    Digit* new_body = new Digit[new_size];
+    Digit* new_body = new Digit[new_size] ();
     if (new_body == nullptr) return BN_NO_MEMORY;
 
     for (size_t i = 0; i < src->size; i++) {
@@ -94,12 +128,12 @@ int _bn_remove_leading_zeros (bn* src) {
     size_t real_size = src->size;
     for (; src->body[real_size-1] == 0; real_size--);
 
-    Digit* new_body = new Digit[real_size];
+    Digit* new_body = new Digit[real_size] ();
     if (new_body == nullptr) {
         real_size = src->size;
         return BN_NO_MEMORY;
     }
-    for (size_t i = 0; i < src->size; i++) {
+    for (size_t i = 0; i < real_size; i++) {
         new_body[i] = src->body[i];
     }
     delete [] src->body;
@@ -153,9 +187,11 @@ int _bn_positive_add_to (bn* t, bn const *right) {
         t->body[t->size-1] = buf;
     }
 
-//  _bn_remove_leading_zeros(t);
-
     return BN_OK;
+}
+
+int _bn_positive_sub_to (bn* t, bn const *right) {
+    return 0;
 }
 
 int _bn_mul_int (bn* t, unsigned int factor) {
@@ -178,7 +214,7 @@ bn* bn_new() {
     bn* r  = new bn;
     if (r == nullptr) return nullptr;
 
-    r->body = new Digit[1];
+    r->body = new Digit[1] ();
     if (r->body == nullptr) {
         delete r;
         return nullptr;
@@ -188,6 +224,25 @@ bn* bn_new() {
     r->sign = BN_ZERO;
     r->body[0] = 0;
     
+    return r;
+}
+
+bn* bn_init (const bn* orig) {
+    bn* r = new bn;
+    if (r == nullptr) return nullptr;
+
+    r->size = orig->size;
+    r->sign = orig->sign;
+    r->body = new Digit[r->size] ();
+    if(r->body == nullptr) {
+        delete r;
+        return nullptr;
+    }
+
+    for (size_t i = 0; i < r->size; i++) {
+        r->body[i] = orig->body[i];
+    }
+
     return r;
 }
 
@@ -232,11 +287,15 @@ int bn_init_string (bn* t, const char* init_string) {
 
     for (; i < str_size; i++) {
         code = _bn_mul_int (t, 10);
+        if (code != BN_OK) return code;
         code = bn_init_int (buf, init_string[i] - '0');
+        if (code != BN_OK) return code;
         code = _bn_positive_add_to(t, buf);
+        if (code != BN_OK) return code;
     }
 
-    return code;    
+    bn_delete(buf);
+    return BN_OK;    
 }
 
 int bn_cmp (const bn* left, const bn* right) {
