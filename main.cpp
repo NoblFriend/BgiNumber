@@ -20,8 +20,8 @@ size_t _strlen (const char* str);
 
 size_t _max (size_t a, size_t b);
 size_t _min (size_t a, size_t b);
-int _bn_swap (bn* a, bn* b);
 
+int _bn_swap (bn* a, bn* b);
 int _bn_realloc (bn* src, size_t new_size);
 int _bn_remove_leading_zeros (bn* src);
 
@@ -44,19 +44,17 @@ int bn_cmp (const bn* left, const bn* right);
 int main() {
     bn* a = bn_new();
     bn* b = bn_new();
-    bn_init_string (a, "-3198371873131448783729381039813982309"); 
-    bn_init_string (b, "18446744073709551611"); 
+    bn_init_string (a, "1000000000000000000000000000"); 
+    bn_init_string (b, "1000000000000000000000000000"); 
     _bn_print(a);
     _bn_print(b);
-    bn* c = bn_init(b);
+    _bn_positive_sub_to(a, b);
     _bn_print(a);
-    _bn_print(c);
 //  for(size_t i = 0; i < 12; i++) {
 //  }
     printf("\n");
     bn_delete(a);
     bn_delete(b);
-    bn_delete(c);
     return 0;
 }
 
@@ -126,7 +124,7 @@ int _bn_remove_leading_zeros (bn* src) {
     if (src == nullptr) return BN_NULL_OBJECT;
     
     size_t real_size = src->size;
-    for (; src->body[real_size-1] == 0; real_size--);
+    for (; real_size > 1 && src->body[real_size-1] == 0; real_size--);
 
     Digit* new_body = new Digit[real_size] ();
     if (new_body == nullptr) {
@@ -139,6 +137,7 @@ int _bn_remove_leading_zeros (bn* src) {
     delete [] src->body;
     src->body = new_body;
     src->size = real_size;
+    if (src->size == 1 && src->body[0] == 0) src->sign = BN_ZERO;
     return BN_OK;
     
 }
@@ -149,8 +148,8 @@ int _bn_print (bn* t) {
     printf("Size: %zu\n", t->size);
     printf("Body: ");
 
-    if (t->sign == BN_NEGATIVE) printf("-");
-    else printf("+");
+    if      (t->sign == BN_NEGATIVE) printf("-");
+    else if (t->sign == BN_POSITIVE) printf("+");
     if (BN_RADIX == 10) {
         for (size_t i = t->size - 1; i > 0; i--) {
             printf("%01lu",t->body[i]);
@@ -191,7 +190,28 @@ int _bn_positive_add_to (bn* t, bn const *right) {
 }
 
 int _bn_positive_sub_to (bn* t, bn const *right) {
-    return 0;
+    if (t == nullptr || right == nullptr) return BN_NULL_OBJECT;
+    //t >= right
+    Digit credit = 0;
+    for (size_t i = 0; i < right->size; i++) {
+        ExtDigit temp = t->body[i] - right->body[i] - credit;
+        if (temp < 0) {
+            temp += BN_RADIX;
+            credit = 1;
+        } else {
+            credit = 0;
+        }
+        t->body[i] = temp;
+    }
+    if (credit != 0) {
+        size_t i = right->size;
+        for (;/* i < t->size && */t->body[i] == 0; i++) {
+            t->body[i] = BN_RADIX - 1;
+        }
+        t->body[i]--;
+    }
+    _bn_remove_leading_zeros(t);
+    return BN_OK;
 }
 
 int _bn_mul_int (bn* t, unsigned int factor) {
