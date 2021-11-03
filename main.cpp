@@ -40,6 +40,7 @@ int bn_init_int (bn* t, int init_int);
 int bn_init_string (bn* t, const char* init_string);
 
 int bn_add_to (bn* t, const bn* right);
+int bn_sub_to (bn* t, const bn* right);
 
 int bn_cmp (const bn* left, const bn* right);
 int bn_neg (bn* t);
@@ -57,7 +58,7 @@ int main() {
 	    bn_init_string (b, c2); 
 	    _bn_print(a);
 	    _bn_print(b);
-        bn_add_to(a, b);
+        bn_sub_to(a, b);
 	    _bn_print(a);
 	    printf("\n");
         bn_delete(a);
@@ -372,6 +373,31 @@ int bn_add_to (bn* t, const bn* right) {
     else if (ls == BN_ZERO     && rs != BN_ZERO    ) {
         bn_delete (t);
         t = bn_init (right);
+    } //else if (rs == BN_ZERO) nothing to do
+    return code;
+}
+
+int bn_sub_to (bn* t, const bn* right) {
+    int code = BN_OK;
+    const BnSign ls = t->sign;
+    const BnSign rs = right->sign;
+         if (ls == BN_POSITIVE && rs == BN_POSITIVE) {
+        code = _bn_positive_sub_to (t, right);
+    } 
+    else if (ls == BN_NEGATIVE && rs == BN_NEGATIVE) {
+        code = _bn_positive_sub_to (t, right);
+        bn_neg (t);
+    }
+    else if (ls == BN_NEGATIVE && rs == BN_POSITIVE) {
+        code = _bn_positive_add_to (t, right); 
+    }
+    else if (ls == BN_POSITIVE && rs == BN_NEGATIVE) {
+        code = _bn_positive_add_to (t, right); 
+    }
+    else if (ls == BN_ZERO     && rs != BN_ZERO    ) {
+        bn_delete (t);
+        t = bn_init (right);
+        bn_neg (t);
     } //else if (rs == BN_ZERO) nothing to do
     return code;
 }
