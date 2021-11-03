@@ -39,22 +39,30 @@ int bn_delete (bn* t);
 int bn_init_int (bn* t, int init_int);
 int bn_init_string (bn* t, const char* init_string);
 
+int bn_add_to (bn* t, const bn* right);
+
 int bn_cmp (const bn* left, const bn* right);
+int bn_neg (bn* t);
+int bn_abs (bn* t);
 
 int main() {
-    bn* a = bn_new();
-    bn* b = bn_new();
-    bn_init_string (a, "1000000000000000000000000000"); 
-    bn_init_string (b, "1000000000000000000000000000"); 
-    _bn_print(a);
-    _bn_print(b);
-    _bn_positive_sub_to(a, b);
-    _bn_print(a);
-//  for(size_t i = 0; i < 12; i++) {
-//  }
-    printf("\n");
-    bn_delete(a);
-    bn_delete(b);
+    while (true) {
+        bn* a = bn_new();
+        bn* b = bn_new();
+        char c1 [40] = {};
+        char c2 [40] = {};
+	    scanf ("%s %s", c1, c2);
+        if (c1[0] == 'q') break;
+	    bn_init_string (a, c1); 
+	    bn_init_string (b, c2); 
+	    _bn_print(a);
+	    _bn_print(b);
+        bn_add_to(a, b);
+	    _bn_print(a);
+	    printf("\n");
+        bn_delete(a);
+        bn_delete(b);
+    }
     return 0;
 }
 
@@ -191,27 +199,83 @@ int _bn_positive_add_to (bn* t, bn const *right) {
 
 int _bn_positive_sub_to (bn* t, bn const *right) {
     if (t == nullptr || right == nullptr) return BN_NULL_OBJECT;
-    //t >= right
-    Digit credit = 0;
-    for (size_t i = 0; i < right->size; i++) {
-        ExtDigit temp = t->body[i] - right->body[i] - credit;
-        if (temp < 0) {
-            temp += BN_RADIX;
-            credit = 1;
-        } else {
-            credit = 0;
+    
+    int abscmp = 0;
+    if (t->size > right->size) abscmp = 1;
+    else if (t->size < right->size) abscmp = -1;
+    else {
+        for (ssize_t i = t->size - 1; i >= 0; i--) {
+            if (t->body[i] != right->body[i]) {
+                abscmp = t->body[i] - right->body[i];
+                break;
+            }
         }
-        t->body[i] = temp;
+        
     }
-    if (credit != 0) {
-        size_t i = right->size;
-        for (;/* i < t->size && */t->body[i] == 0; i++) {
-            t->body[i] = BN_RADIX - 1;
+
+    printf("abscmp == %d\n", abscmp);
+
+    if (abscmp == 0) {
+        t->size = 1;
+        delete [] t->body;
+        t->body = new Digit[1];
+        t->body[0] = 0;
+        t->sign = BN_ZERO;
+        return BN_OK;
+    }
+    
+    if (abscmp > 0) {
+        t->sign = BN_POSITIVE;
+	    Digit credit = 0;
+	    for (size_t i = 0; i < right->size; i++) {
+	        ExtDigit temp = t->body[i] - right->body[i] - credit;
+	        if (temp < 0) {
+	            temp += BN_RADIX;
+	            credit = 1;
+	        } else {
+	            credit = 0;
+	        }
+	        t->body[i] = temp;
+	    }
+	    if (credit != 0) {
+	        size_t i = right->size;
+	        for (;/* i < t->size && */t->body[i] == 0; i++) {
+	            t->body[i] = BN_RADIX - 1;
+	        }
+	        t->body[i]--;
+	    }
+	    _bn_remove_leading_zeros(t);
+	    return BN_OK;
+    }
+
+    // (if abscmp < 0)
+        size_t t_real_size = t->size;
+        _bn_realloc (t, right->size);
+        t->sign = BN_NEGATIVE;
+        Digit credit = 0;
+	    for (size_t i = 0; i < t_real_size; i++) {
+	        ExtDigit temp = right->body[i] - t->body[i] - credit;
+	        if (temp < 0) {
+	            temp += BN_RADIX;
+	            credit = 1;
+	        } else {
+	            credit = 0;
+	        }
+	        t->body[i] = temp;
+	    }
+	    size_t i = t_real_size;
+	    if (credit != 0) { // REWORK!
+	        for (;/* i < t->size && */right->body[i] == 0; i++) {
+	            t->body[i] = BN_RADIX - 1;
+	        }
+	        t->body[i] = right->body[i] - 1;
+            i++;
+	    }
+        for (;i < t->size; i++) {
+            t->body[i] = right->body[i];
         }
-        t->body[i]--;
-    }
-    _bn_remove_leading_zeros(t);
-    return BN_OK;
+        _bn_remove_leading_zeros(t);
+	    return BN_OK;
 }
 
 int _bn_mul_int (bn* t, unsigned int factor) {
@@ -288,6 +352,30 @@ int bn_init_int (bn* t, int init_int) {
     return BN_OK;
 }
 
+int bn_add_to (bn* t, const bn* right) {
+    int code = BN_OK;
+    const BnSign ls = t->sign;
+    const BnSign rs = right->sign;
+         if (ls == BN_POSITIVE && rs == BN_POSITIVE) {
+        code = _bn_positive_add_to (t, right);
+    } 
+    else if (ls == BN_NEGATIVE && rs == BN_NEGATIVE) {
+        code = _bn_positive_add_to (t, right);
+    }
+    else if (ls == BN_NEGATIVE && rs == BN_POSITIVE) {
+        code = _bn_positive_sub_to (t, right); 
+        bn_neg (t);
+    }
+    else if (ls == BN_POSITIVE && rs == BN_NEGATIVE) {
+        code = _bn_positive_sub_to (t, right); 
+    }
+    else if (ls == BN_ZERO     && rs != BN_ZERO    ) {
+        bn_delete (t);
+        t = bn_init (right);
+    } //else if (rs == BN_ZERO) nothing to do
+    return code;
+}
+
 int bn_init_string (bn* t, const char* init_string) {
     if (t == nullptr) return BN_NULL_OBJECT;
     
@@ -337,4 +425,17 @@ int bn_cmp (const bn* left, const bn* right) {
     }
 
     return 0;
+}
+
+int bn_neg (bn* t) {
+    if (t == nullptr) return BN_NULL_OBJECT;
+         if (t->sign == BN_POSITIVE) t->sign = BN_NEGATIVE;
+    else if (t->sign == BN_NEGATIVE) t->sign = BN_POSITIVE;
+    return BN_OK;
+}
+
+int bn_abs (bn* t) {
+    if (t == nullptr) return BN_NULL_OBJECT;
+    if (t->sign != BN_ZERO) t->sign = BN_POSITIVE;
+    return BN_OK;
 }
